@@ -1,5 +1,6 @@
 import os
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 from metrics import PSNR
@@ -7,12 +8,15 @@ from metrics import PSNR
 
 class Binarization:
     def __init__(self, window_size, alpha, sigma0):
+        assert window_size % 2 == 1 and window_size > 1
+
         self.window_size = window_size
         self.alpha = alpha
         self.sigma0 = sigma0
 
     @staticmethod
     def prepare_image(image):
+        assert len(image.shape) <= 4
         if len(image.shape) == 4:
             image = cv2.cvtColor(image, cv2.COLOR_BGRA2GRAY)
         elif len(image.shape) == 3:
@@ -26,7 +30,7 @@ class Binarization:
 
         max_criterion = 0  # max between-class variance
         threshold = 0
-        for k in range(256):
+        for k in range(1, 256):
             w0 = np.sum(norm_hist[:k])
             w1 = np.sum(norm_hist[k:])
 
@@ -50,7 +54,7 @@ class Binarization:
 
         max_criterion = -np.inf
         threshold = 0
-        for k in range(256):
+        for k in range(1, 256):
             w0 = np.sum(norm_hist[:k])
             w1 = np.sum(norm_hist[k:])
 
@@ -66,7 +70,9 @@ class Binarization:
                 criterion += w0 * np.log(w0)
             if w1 != 0:
                 criterion += w1 * np.log(w1)
-            criterion -= np.log(var_w) / 2
+            if var_w != 0:
+                criterion -= np.log(var_w) / 2
+
             if criterion > max_criterion:
                 max_criterion = criterion
                 threshold = k
@@ -122,8 +128,9 @@ class Binarization:
         threshold.fill(-1)
 
         completed = False
+        last_iteration = False
         window_size = self.window_size
-        while window_size <= np.min(image.shape):
+        while True:
             top_bound = np.maximum(np.arange(-window_size // 2 + 1, height - 1 - window_size // 2), 0)
             bottom_bound = np.minimum(np.arange(window_size // 2 + 1, height + window_size // 2), height - 1)
             left_bound = np.maximum(np.arange(-window_size // 2 + 1, width - 1 - window_size // 2), 0)
@@ -147,14 +154,21 @@ class Binarization:
             threshold[fill_condition] = np.clip(means[fill_condition] + self.alpha * std[fill_condition], 0, 255)
 
             if np.count_nonzero(threshold == -1) > 0:
-                window_size = window_size * 2 - 1
+                if last_iteration:
+                    break
+                else:
+                    window_size = window_size * 2 - 1
+                    if window_size > np.min(image.shape):
+                        window_size = np.min(image.shape)
+                        if window_size % 2 == 0:
+                            window_size += 1
+                        last_iteration = True
             else:
                 completed = True
                 break
 
         if not completed:
-            print('The image doesn\'t have any remarkable structures')
-            return np.zeros_like(image)
+            raise ValueError('The image doesn\'t have any remarkable structures')
 
         result = 255 * (image > threshold).astype(np.uint8)
 
