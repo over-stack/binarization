@@ -75,8 +75,8 @@ PSNR, тем лучше качество восстановленного изо
 </table>
 <table>
   <tr>
-    <td><img src="dataset/test/images/2.jpg" alt="Оригинал"></td>
-    <td><img src="result/otsu/2.jpg" alt="Результат"></td>
+    <td><img src="dataset/test/images/2.JPG" alt="Оригинал"></td>
+    <td><img src="result/otsu/2.JPG" alt="Результат"></td>
   </tr>
 </table>
 
